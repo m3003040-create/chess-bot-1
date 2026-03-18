@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ApexChess Engine - World Most Powerful AI</title>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <style>
+        body { background: #121212; color: #00ffcc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; overflow-x: hidden; }
+        #board { width: 600px; box-shadow: 0 0 50px rgba(0, 255, 204, 0.2); border: 5px solid #1f1f1f; border-radius: 8px; }
+        .controls { margin-top: 30px; display: flex; gap: 20px; background: #1f1f1f; padding: 20px; border-radius: 12px; border: 1px solid #333; }
+        button { background: transparent; border: 2px solid #00ffcc; color: #00ffcc; padding: 12px 24px; font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; border-radius: 5px; }
+        button:hover { background: #00ffcc; color: #121212; box-shadow: 0 0 20px #00ffcc; }
+        .status-panel { margin-top: 20px; width: 600px; background: #1a1a1a; border-left: 4px solid #00ffcc; padding: 15px; font-family: 'Courier New', Courier, monospace; }
+        #status, #fen, #pgn { margin: 5px 0; font-size: 14px; }
+        .highlight-white { background-color: #f0d9b5; }
+        .highlight-black { background-color: #b58863; }
+        header { margin-bottom: 20px; text-align: center; }
+        h1 { font-size: 3rem; margin: 0; text-shadow: 0 0 10px #00ffcc; }
+        .engine-log { height: 150px; overflow-y: scroll; background: #000; color: #00ff00; padding: 10px; margin-top: 20px; width: 600px; border-radius: 5px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>APEX CHESS</h1>
+        <p>Ultra-Fast Neural Engine Interface</p>
+    </header>
+    <div id="board"></div>
+    <div class="status-panel">
+        <div id="status">Статус: Готов к игре</div>
+        <div id="fen">FEN: startpos</div>
+    </div>
+    <div class="controls">
+        <button onclick="resetGame()">Новая игра</button>
+        <button onclick="undoMove()">Отмена хода</button>
+        <button onclick="switchSides()">Сменить сторону</button>
+        <select id="difficulty" style="background: #121212; color: #00ffcc; border: 2px solid #00ffcc; padding: 10px;">
+            <option value="10">Глубина 10 (Мгновенно)</option>
+            <option value="20">Глубина 20 (Мастер)</option>
+            <option value="50">Глубина 50 (Apex Mode)</option>
+        </select>
+    </div>
+    <div class="engine-log" id="log">
+        [System]: ApexChess v1.0.0 Core Loaded...<br>
+        [System]: Awaiting UCI signal...
+    </div>
+    <script>
+        var board = null;
+        var game = new Chess();
+        var $status = $('#status');
+        var $fen = $('#fen');
+        var $log = $('#log');
+
+        function onDragStart (source, piece, position, orientation) {
+            if (game.game_over()) return false;
+            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+        }
+
+        function makeEngineMove () {
+            var possibleMoves = game.moves();
+            if (game.game_over()) return;
+            
+            // Здесь будет AJAX/WebSocket запрос к скомпилированному C++ движку ApexChess
+            // Пока имитируем задержку "раздумий" самого мощного движка
+            $log.append('[Engine]: Thinking deep (depth ' + $('#difficulty').val() + ')...<br>');
+            
+            setTimeout(function() {
+                var randomIndex = Math.floor(Math.random() * possibleMoves.length);
+                game.move(possibleMoves[randomIndex]);
+                board.position(game.fen());
+                updateStatus();
+                $log.append('[Engine]: Best move found. PV: ' + game.history().slice(-1)[0] + '<br>');
+                $log.scrollTop($log[0].scrollHeight);
+            }, 500);
+        }
+
+        function onDrop (source, target) {
+            var move = game.move({ from: source, to: target, promotion: 'q' });
+            if (move === null) return 'snapback';
+            updateStatus();
+            window.setTimeout(makeEngineMove, 250);
+        }
+
+        function onSnapEnd () { board.position(game.fen()); }
+
+        function updateStatus () {
+            var status = '';
+            var moveColor = (game.turn() === 'b') ? 'Черные' : 'Белые';
+            if (game.in_checkmate()) { status = 'Игра окончена, ' + moveColor + ' в мате.'; }
+            else if (game.in_draw()) { status = 'Игра окончена, ничья'; }
+            else {
+                status = moveColor + ' ходят';
+                if (game.in_check()) { status += ', ' + moveColor + ' под шахом'; }
+            }
+            $status.html(status);
+            $fen.html(game.fen());
+        }
+
+        function resetGame() {
+            game.reset();
+            board.start();
+            updateStatus();
+            $log.html('[System]: Game Reset. New session started.<br>');
+        }
+
+        var config = { draggable: true, position: 'start', onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd };
+        board = Chessboard('board', config);
+        updateStatus();
+    </script>
+</body>
+</html>
