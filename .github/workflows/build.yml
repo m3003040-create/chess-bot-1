@@ -8,11 +8,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Compile Linux
-      run: g++ -O3 -std=c++17 Bitboard.cpp MoveGen.cpp Position.cpp Search.cpp Evaluation.cpp NNUE_Architecture.cpp UCI_Interface.cpp Main.cpp -o apex_chess -pthread
+    - uses: actions/checkout@v4
+    
+    - name: Compile ApexChess
+      run: g++ -O3 -std=c++17 *.cpp -o apex_chess -pthread
+
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: apex-chess-binary
         path: apex_chess
